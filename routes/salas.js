@@ -6,6 +6,7 @@ const Sala = require('../models/Sala');
 const Reserva = require('../models/Reserva');
 const { auth, requireRole } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const cloudinary = require('../config/cloudinary');
 
 const router = express.Router();
 
@@ -155,6 +156,8 @@ router.post('/', auth, requireRole(['admin']), async (req, res) => {
 // Subir imagen a una sala (solo admin)
 router.post('/:id/imagen', auth, requireRole(['admin']), upload.single('imagen'), async (req, res) => {
   try {
+    const { id } = req.params;
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -162,41 +165,64 @@ router.post('/:id/imagen', auth, requireRole(['admin']), upload.single('imagen')
       });
     }
 
-    const sala = await Sala.findById(req.params.id);
+    // Buscar la sala
+    const sala = await Sala.findById(id);
     if (!sala) {
-      // Eliminar archivo subido si la sala no existe
-      fs.unlinkSync(req.file.path);
       return res.status(404).json({
         success: false,
         message: 'Sala no encontrada'
       });
     }
 
-    // Si ya existe una imagen, eliminar la anterior
-    if (sala.imagenUrl) {
-      const oldImagePath = path.join(__dirname, '../', sala.imagenUrl);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
+    // Si ya existe una imagen en Cloudinary, eliminar la anterior
+    if (sala.imagenPublicId) {
+      try {
+        await cloudinary.uploader.destroy(sala.imagenPublicId);
+      } catch (error) {
+        console.error('Error eliminando imagen anterior de Cloudinary:', error);
+        // No fallar si no se puede eliminar la anterior
       }
     }
 
-    // Guardar la URL de la nueva imagen (relativa a la carpeta pública)
-    const imagenUrl = `/uploads/images/salas/${req.file.filename}`;
-    sala.imagenUrl = imagenUrl;
+    // Subir a Cloudinary
+    const uploadResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'conalep/salas', // Organizar en carpetas
+          public_id: `sala-${id}-${Date.now()}`, // Nombre único
+          resource_type: 'image',
+          transformation: [
+            { width: 1200, height: 800, crop: 'limit' }, // Redimensionar si es muy grande
+            { quality: 'auto' }, // Optimización automática
+            { format: 'auto' } // Formato automático (webp si es compatible)
+          ]
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+
+      // Enviar el buffer de la imagen
+      uploadStream.end(req.file.buffer);
+    });
+
+    // Actualizar la sala con la URL de Cloudinary
+    sala.imagenUrl = uploadResult.secure_url; // URL pública segura (HTTPS)
+    sala.imagenPublicId = uploadResult.public_id; // Guardar para poder eliminar después
     await sala.save();
 
     res.json({
       success: true,
-      message: 'Imagen subida exitosamente',
+      message: 'Imagen subida correctamente',
       data: {
-        imagenUrl: imagenUrl
+        imagenUrl: uploadResult.secure_url,
+        url: uploadResult.secure_url // Compatibilidad con frontend
       }
     });
+
   } catch (error) {
-    // Eliminar archivo en caso de error
-    if (req.file && req.file.path) {
-      fs.unlinkSync(req.file.path);
-    }
+    console.error('Error subiendo imagen:', error);
     res.status(500).json({
       success: false,
       message: 'Error subiendo imagen: ' + error.message
@@ -222,14 +248,19 @@ router.delete('/:id/imagen', auth, requireRole(['admin']), async (req, res) => {
       });
     }
 
-    // Eliminar archivo físico
-    const imagePath = path.join(__dirname, '../', sala.imagenUrl);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
+    // Si la imagen está en Cloudinary, eliminarla
+    if (sala.imagenPublicId) {
+      try {
+        await cloudinary.uploader.destroy(sala.imagenPublicId);
+      } catch (error) {
+        console.error('Error eliminando imagen de Cloudinary:', error);
+        // Continuar aunque falle la eliminación en Cloudinary
+      }
     }
 
-    // Limpiar la URL en la base de datos
+    // Limpiar la URL y publicId en la base de datos
     sala.imagenUrl = null;
+    sala.imagenPublicId = null;
     await sala.save();
 
     res.json({
@@ -237,6 +268,7 @@ router.delete('/:id/imagen', auth, requireRole(['admin']), async (req, res) => {
       message: 'Imagen eliminada exitosamente'
     });
   } catch (error) {
+    console.error('Error eliminando imagen:', error);
     res.status(500).json({
       success: false,
       message: 'Error eliminando imagen: ' + error.message

@@ -27,6 +27,10 @@ const salaSchema = new mongoose.Schema({
   imagenUrl: {
     type: String,
     default: null
+  },
+  imagenPublicId: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true
