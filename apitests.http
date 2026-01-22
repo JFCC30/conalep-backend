@@ -1,0 +1,89 @@
+@baseUrl = http://localhost:5000/api
+@contentType = application/json
+
+### 🌐 TEST 1: Salud del servidor
+GET {{baseUrl}}/health
+
+### 🌐 TEST 2: Obtener datos de prueba (solo primera vez)
+GET {{baseUrl}}/seed
+
+### 🔐 TEST 3: Login como Administrador
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "admin@conalep.edu.mx",
+  "password": "admin123"
+}
+
+### 🔐 TEST 4: Login como Docente
+# @name loginDocente
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "juan.perez@conalep.edu.mx",
+  "password": "docente123"
+}
+
+### 🏢 TEST 5: Obtener todas las salas (PÚBLICO)
+GET {{baseUrl}}/salas
+
+### 🏢 TEST 6: Obtener sala por ID (PÚBLICO)
+# Reemplaza :id con un ID real de alguna sala
+GET {{baseUrl}}/salas/{{salaId}}
+
+### 🏢 TEST 7: Verificar disponibilidad de sala (PÚBLICO)
+# Reemplaza :id con un ID real y la fecha
+GET {{baseUrl}}/salas/{{salaId}}/disponibilidad?fecha=2024-01-20
+
+### 📅 TEST 8: Obtener mis reservas (PROTEGIDO - necesita token)
+# @name getMisReservas
+GET {{baseUrl}}/reservas/mis-reservas
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+### 📅 TEST 9: Crear nueva reserva (PROTEGIDO - docente/admin)
+# @name crearReserva
+POST {{baseUrl}}/reservas
+Authorization: Bearer {{docenteToken}}
+Content-Type: {{contentType}}
+
+{
+  "salaId": "{{salaId}}",
+  "fechaReserva": "2024-01-20",
+  "horaInicio": "14:00",
+  "horaFin": "16:00",
+  "motivo": "Clase de base de datos para 6IM1",
+  "grupo": "6IM1",
+  "materia": "Base de Datos"
+}
+
+### 📅 TEST 10: Obtener todas las reservas (SOLO ADMIN)
+GET {{baseUrl}}/reservas
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+### 📅 TEST 11: Aprobar reserva (SOLO ADMIN)
+# Reemplaza :id con un ID real de reserva
+PATCH {{baseUrl}}/reservas/{{reservaId}}/estado
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "estado": "aprobada",
+  "comentariosAdmin": "Reserva aprobada para clase regular"
+}
+
+### 👤 TEST 12: Registrar nuevo usuario
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "nombre": "María García López",
+  "email": "maria.garcia@conalep.edu.mx",
+  "password": "maria123",
+  "rol": "docente",
+  "departamento": "Informática"
+}
