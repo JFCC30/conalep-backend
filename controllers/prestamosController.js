@@ -1,6 +1,7 @@
 // controllers/prestamosController.js - VERSIÓN ACTUALIZADA CON SISTEMA DE APROBACIÓN
 const Prestamo = require('../models/Prestamo');
 const Herramienta = require('../models/Herramienta');
+const { enviarNotificacionAAdmins, enviarNotificacionAUsuario } = require('../services/notificacionesService');
 
 // Obtener todos los préstamos (admin)
 exports.getPrestamos = async (req, res) => {
@@ -93,6 +94,18 @@ exports.crearPrestamo = async (req, res) => {
     // Poblar datos para la respuesta
     await nuevoPrestamo.populate('herramienta', 'nombre categoria descripcion ubicacion');
 
+    // ✅ ENVIAR NOTIFICACIÓN A ADMINS
+    await enviarNotificacionAAdmins({
+      title: '🔧 Nueva Solicitud de Préstamo',
+      body: `${req.user.nombre} ha solicitado ${cantidad} ${herramienta.nombre}`,
+      data: {
+        tipo: 'prestamo',
+        prestamoId: nuevoPrestamo._id.toString(),
+        herramientaId: herramientaId,
+        accion: 'nueva'
+      }
+    });
+
     res.status(201).json({
       success: true,
       message: 'Solicitud de préstamo creada exitosamente. Esperando aprobación del administrador.',
@@ -150,6 +163,18 @@ exports.aprobarPrestamo = async (req, res) => {
     await prestamo.populate('usuario', 'nombre email');
     await prestamo.populate('herramienta', 'nombre categoria descripcion ubicacion');
 
+    // ✅ ENVIAR NOTIFICACIÓN AL USUARIO
+    await enviarNotificacionAUsuario(prestamo.usuario._id.toString(), {
+      title: '✅ Préstamo Aprobado',
+      body: `Tu solicitud de préstamo de ${prestamo.herramienta.nombre} ha sido aprobada`,
+      data: {
+        tipo: 'prestamo',
+        prestamoId: prestamo._id.toString(),
+        estado: 'prestado',
+        accion: 'aprobado'
+      }
+    });
+
     res.json({
       success: true,
       message: 'Préstamo aprobado y entregado exitosamente',
@@ -168,7 +193,9 @@ exports.aprobarPrestamo = async (req, res) => {
 exports.rechazarPrestamo = async (req, res) => {
   try {
     const { motivoRechazo } = req.body;
-    const prestamo = await Prestamo.findById(req.params.id);
+    const prestamo = await Prestamo.findById(req.params.id)
+      .populate('usuario', 'nombre email')
+      .populate('herramienta', 'nombre');
 
     if (!prestamo) {
       return res.status(404).json({
@@ -188,6 +215,19 @@ exports.rechazarPrestamo = async (req, res) => {
     prestamo.estado = 'rechazado';
     prestamo.motivoRechazo = motivoRechazo || '';
     await prestamo.save();
+
+    // ✅ ENVIAR NOTIFICACIÓN AL USUARIO
+    await enviarNotificacionAUsuario(prestamo.usuario._id.toString(), {
+      title: '❌ Préstamo Rechazado',
+      body: `Tu solicitud de préstamo de ${prestamo.herramienta.nombre} ha sido rechazada`,
+      data: {
+        tipo: 'prestamo',
+        prestamoId: prestamo._id.toString(),
+        estado: 'rechazado',
+        accion: 'rechazado',
+        motivoRechazo: motivoRechazo || ''
+      }
+    });
 
     res.json({
       success: true,

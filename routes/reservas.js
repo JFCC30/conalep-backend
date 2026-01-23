@@ -3,6 +3,7 @@ const express = require('express');
 const Reserva = require('../models/Reserva');
 const Sala = require('../models/Sala');
 const { auth, requireRole } = require('../middleware/auth');
+const { enviarNotificacionAAdmins, enviarNotificacionAUsuario } = require('../services/notificacionesService');
 
 const router = express.Router();
 
@@ -73,6 +74,9 @@ router.post('/', auth, requireRole(['admin', 'docente']), async (req, res) => {
       });
     }
 
+    // Obtener información de la sala
+    const sala = await Sala.findById(salaId);
+
     // Crear reserva
     const reserva = await Reserva.create({
       sala: salaId,
@@ -88,6 +92,18 @@ router.post('/', auth, requireRole(['admin', 'docente']), async (req, res) => {
     // Populate para obtener datos relacionados
     await reserva.populate('sala', 'nombre descripcion');
     await reserva.populate('usuario', 'nombre email');
+
+    // ✅ ENVIAR NOTIFICACIÓN A ADMINS
+    await enviarNotificacionAAdmins({
+      title: '📅 Nueva Solicitud de Reserva',
+      body: `${req.user.nombre} ha solicitado reservar ${sala?.nombre || 'una sala'} para ${fechaReserva}`,
+      data: {
+        tipo: 'reserva',
+        reservaId: reserva._id.toString(),
+        salaId: salaId,
+        accion: 'nueva'
+      }
+    });
 
     res.status(201).json({
       success: true,
@@ -193,6 +209,23 @@ router.patch('/:id/estado', auth, requireRole(['admin']), async (req, res) => {
     const reservaActualizada = await Reserva.findById(req.params.id)
       .populate('sala', 'nombre descripcion')
       .populate('usuario', 'nombre email rol');
+
+    // ✅ ENVIAR NOTIFICACIÓN AL DOCENTE si se aprueba o rechaza
+    if (estado === 'aprobada' || estado === 'rechazada') {
+      await enviarNotificacionAUsuario(reserva.usuario._id.toString(), {
+        title: estado === 'aprobada' ? '✅ Reserva Aprobada' : '❌ Reserva Rechazada',
+        body: estado === 'aprobada' 
+          ? `Tu reserva de ${reservaActualizada.sala?.nombre || 'sala'} para ${reservaActualizada.fechaReserva?.toISOString().split('T')[0]} ha sido aprobada`
+          : `Tu reserva de ${reservaActualizada.sala?.nombre || 'sala'} para ${reservaActualizada.fechaReserva?.toISOString().split('T')[0]} ha sido rechazada`,
+        data: {
+          tipo: 'reserva',
+          reservaId: reservaActualizada._id.toString(),
+          estado: estado,
+          accion: estado,
+          comentariosAdmin: comentariosAdmin || ''
+        }
+      });
+    }
 
     // Mensaje dinámico según el estado
     let mensaje = 'Reserva actualizada exitosamente';

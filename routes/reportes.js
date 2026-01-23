@@ -2,6 +2,7 @@
 const express = require('express');
 const Reporte = require('../models/Reporte');
 const { auth, requireRole } = require('../middleware/auth');
+const { enviarNotificacionAAdmins, enviarNotificacionAUsuario } = require('../services/notificacionesService');
 
 const router = express.Router();
 
@@ -20,6 +21,17 @@ router.post('/', auth, requireRole(['admin', 'docente']), async (req, res) => {
     });
 
     await reporte.populate('usuario', 'nombre email rol');
+
+    // ✅ ENVIAR NOTIFICACIÓN A ADMINS
+    await enviarNotificacionAAdmins({
+      title: '⚠️ Nuevo Reporte de Falla',
+      body: `${req.user.nombre} ha reportado: ${titulo}`,
+      data: {
+        tipo: 'reporte',
+        reporteId: reporte._id.toString(),
+        accion: 'nuevo'
+      }
+    });
 
     res.status(201).json({
       success: true,
@@ -112,6 +124,20 @@ router.patch('/:id/estado', auth, requireRole(['admin']), async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Reporte no encontrado'
+      });
+    }
+
+    // ✅ ENVIAR NOTIFICACIÓN AL USUARIO si se resuelve
+    if (estado === 'resuelto') {
+      await enviarNotificacionAUsuario(reporte.usuario._id.toString(), {
+        title: '✅ Reporte Resuelto',
+        body: `Tu reporte "${reporte.titulo}" ha sido resuelto`,
+        data: {
+          tipo: 'reporte',
+          reporteId: reporte._id.toString(),
+          estado: 'resuelto',
+          accion: 'resuelto'
+        }
       });
     }
 

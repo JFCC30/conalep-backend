@@ -87,9 +87,10 @@ connectDB();
 // ====================
 // IMPORTAR RUTAS
 // ====================
-const herramientasRoutes = require('./routes/herramientasRoutes');
-const prestamosRoutes = require('./routes/prestamosRoutes');
-const usersRoutes = require('./routes/usersRoutes');
+  const herramientasRoutes = require('./routes/herramientasRoutes');
+  const prestamosRoutes = require('./routes/prestamosRoutes');
+  const usersRoutes = require('./routes/usersRoutes');
+  const notificacionesRoutes = require('./routes/notificacionesRoutes');
 
 // ====================
 // RUTAS DE LA API
@@ -101,6 +102,7 @@ app.use('/api/reportes', require('./routes/reportes'));
 app.use('/api/herramientas', herramientasRoutes);
 app.use('/api/prestamos', prestamosRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
 
 // ====================
 // RUTAS DE SISTEMA
