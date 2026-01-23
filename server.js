@@ -12,32 +12,49 @@ const app = express();
 // ====================
 const corsOptions = {
   origin: function (origin, callback) {
-    // En desarrollo permitir cualquier origen
-    if (process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-    
-    // En producción, definir orígenes permitidos
+    // Lista de orígenes permitidos
     const allowedOrigins = [
-      'https://conalep-control-app.onrender.com', // Tu frontend si lo subes
-      /\.onrender\.com$/, // Todos los dominios de Render
-      'exp://', // Para Expo Go
-      'http://localhost:19006', // Expo Web
-      'http://localhost:8081' // Expo
+      'http://localhost:8081',           // Expo web local
+      'http://localhost:19006',          // Expo web alternativo
+      'http://localhost:3000',           // Desarrollo local
+      'https://conalep-control-app.onrender.com', // Frontend en Render
+      /\.onrender\.com$/,                // Todos los dominios de Render
+      'exp://',                          // Para Expo Go
+      // Agrega aquí tu dominio de producción cuando lo tengas
+      // 'https://conalep-control-app.web.app',  // Firebase Hosting
+      // 'https://conalep-control-app.netlify.app', // Netlify
+      // 'https://conalep-control-app.vercel.app',  // Vercel
     ];
-    
-    if (!origin || allowedOrigins.some(allowed => {
+
+    // Permitir solicitudes sin origen (Postman, apps móviles, etc.)
+    if (!origin) return callback(null, true);
+
+    // En desarrollo, permitir cualquier origen local
+    if (process.env.NODE_ENV !== 'production') {
+      // Permitir localhost en cualquier puerto para desarrollo
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, true);
+      }
+    }
+
+    // Verificar si el origen está permitido
+    const isAllowed = allowedOrigins.some(allowed => {
       if (allowed instanceof RegExp) return allowed.test(origin);
       return allowed === origin;
-    })) {
+    });
+
+    if (isAllowed) {
       callback(null, true);
     } else {
+      console.warn(`⚠️ Origen no permitido: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400 // Cache preflight por 24 horas
 };
 
 app.use(cors(corsOptions));
