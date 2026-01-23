@@ -12,43 +12,59 @@ const app = express();
 // ====================
 const corsOptions = {
   origin: function (origin, callback) {
-    // Lista de orígenes permitidos
-    const allowedOrigins = [
-      'http://localhost:8081',           // Expo web local
-      'http://localhost:19006',          // Expo web alternativo
-      'http://localhost:3000',           // Desarrollo local
+    // Permitir solicitudes sin origen (Postman, apps móviles, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // Lista completa de orígenes permitidos (strings exactos)
+    const allowedOriginsExact = [
+      'http://localhost:8081',                    // Expo web local
+      'http://localhost:19006',                   // Expo web alternativo
+      'http://localhost:3000',                     // Desarrollo local
       'https://conalep-control-app.onrender.com', // Frontend en Render
-      /\.onrender\.com$/,                // Todos los dominios de Render
-      'exp://',                          // Para Expo Go
-      // Agrega aquí tu dominio de producción cuando lo tengas
-      // 'https://conalep-control-app.web.app',  // Firebase Hosting
-      // 'https://conalep-control-app.netlify.app', // Netlify
-      // 'https://conalep-control-app.vercel.app',  // Vercel
+      'https://conalep-app.netlify.app',          // Frontend en Netlify (PRODUCCIÓN)
     ];
 
-    // Permitir solicitudes sin origen (Postman, apps móviles, etc.)
-    if (!origin) return callback(null, true);
+    // Verificar primero si es un origen exacto permitido
+    if (allowedOriginsExact.includes(origin)) {
+      console.log(`✅ Origen permitido (exacto): ${origin}`);
+      return callback(null, true);
+    }
 
-    // En desarrollo, permitir cualquier origen local
-    if (process.env.NODE_ENV !== 'production') {
-      // Permitir localhost en cualquier puerto para desarrollo
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    // Patrones regex para dominios (verificar después de los exactos)
+    const allowedPatterns = [
+      { pattern: /^https?:\/\/localhost(:\d+)?$/, name: 'localhost' },
+      { pattern: /^https?:\/\/127\.0\.0\.1(:\d+)?$/, name: '127.0.0.1' },
+      { pattern: /^https:\/\/.*\.onrender\.com$/, name: 'onrender.com' },
+      { pattern: /^https:\/\/.*\.netlify\.app$/, name: 'netlify.app' },
+      { pattern: /^exp:\/\//, name: 'expo' },
+    ];
+
+    // Verificar si coincide con algún patrón
+    for (const { pattern, name } of allowedPatterns) {
+      if (pattern.test(origin)) {
+        console.log(`✅ Origen permitido (patrón ${name}): ${origin}`);
         return callback(null, true);
       }
     }
 
-    // Verificar si el origen está permitido
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (allowed instanceof RegExp) return allowed.test(origin);
-      return allowed === origin;
-    });
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ Origen no permitido: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+    // En desarrollo, permitir cualquier origen local
+    if (process.env.NODE_ENV !== 'production') {
+      if (origin.startsWith('http://localhost:') || 
+          origin.startsWith('http://127.0.0.1:') ||
+          origin.startsWith('https://localhost:') ||
+          origin.startsWith('https://127.0.0.1:')) {
+        console.log(`✅ Origen permitido (desarrollo): ${origin}`);
+        return callback(null, true);
+      }
     }
+
+    // Si llegamos aquí, el origen no está permitido
+    console.warn(`⚠️ Origen NO permitido: ${origin}`);
+    console.warn(`   NODE_ENV: ${process.env.NODE_ENV || 'undefined'}`);
+    console.warn(`   Orígenes exactos permitidos:`, allowedOriginsExact);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -57,7 +73,20 @@ const corsOptions = {
   maxAge: 86400 // Cache preflight por 24 horas
 };
 
+// Aplicar CORS
 app.use(cors(corsOptions));
+
+// Manejar explícitamente las solicitudes OPTIONS (preflight)
+app.options('*', cors(corsOptions));
+
+// Middleware para logging de CORS (solo en desarrollo)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`📡 ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+    next();
+  });
+}
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -416,25 +445,33 @@ const server = app.listen(PORT, HOST, () => {
 // ====================
 
 // Manejar cierre graceful
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('👋 SIGTERM recibido. Cerrando servidor...');
-  server.close(() => {
+  server.close(async () => {
     console.log('✅ Servidor cerrado');
-    mongoose.connection.close(false, () => {
+    try {
+      await mongoose.connection.close();
       console.log('✅ Conexión a MongoDB cerrada');
       process.exit(0);
-    });
+    } catch (error) {
+      console.error('❌ Error cerrando MongoDB:', error);
+      process.exit(1);
+    }
   });
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('👋 SIGINT recibido. Cerrando servidor...');
-  server.close(() => {
+  server.close(async () => {
     console.log('✅ Servidor cerrado');
-    mongoose.connection.close(false, () => {
+    try {
+      await mongoose.connection.close();
       console.log('✅ Conexión a MongoDB cerrada');
       process.exit(0);
-    });
+    } catch (error) {
+      console.error('❌ Error cerrando MongoDB:', error);
+      process.exit(1);
+    }
   });
 });
 
