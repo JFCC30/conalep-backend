@@ -14,6 +14,14 @@ const {
  */
 router.post('/registrar-token', auth, async (req, res) => {
   try {
+    // Manejar caso donde req.body puede ser undefined
+    if (!req.body) {
+      return res.status(400).json({
+        success: false,
+        message: 'Body de la petición requerido'
+      });
+    }
+
     const { pushToken } = req.body;
     const usuarioId = req.user._id.toString(); // Del middleware de autenticación
 
@@ -51,19 +59,22 @@ router.post('/registrar-token', auth, async (req, res) => {
 router.post('/eliminar-token', auth, async (req, res) => {
   try {
     const usuarioId = req.user._id.toString();
-    const { pushToken } = req.body; // Opcional
+    // Manejar caso donde req.body puede ser undefined o null
+    // pushToken es opcional - si no se envía, se eliminan todos los tokens del usuario
+    const pushToken = (req.body && req.body.pushToken) ? req.body.pushToken : null;
 
     await eliminarToken(usuarioId, pushToken);
 
     res.json({
       success: true,
-      message: 'Token eliminado correctamente'
+      message: pushToken ? 'Token eliminado correctamente' : 'Todos los tokens eliminados correctamente'
     });
   } catch (error) {
     console.error('Error eliminando token:', error);
     res.status(500).json({
       success: false,
-      message: 'Error eliminando token'
+      message: 'Error eliminando token',
+      error: error.message
     });
   }
 });
