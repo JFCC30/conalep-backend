@@ -445,35 +445,25 @@ const server = app.listen(PORT, HOST, () => {
 // ====================
 
 // Manejar cierre graceful
-process.on('SIGTERM', async () => {
-  console.log('👋 SIGTERM recibido. Cerrando servidor...');
-  server.close(async () => {
+const gracefulShutdown = () => {
+  console.log('👋 Cerrando servidor...');
+  server.close(() => {
     console.log('✅ Servidor cerrado');
-    try {
-      await mongoose.connection.close();
-      console.log('✅ Conexión a MongoDB cerrada');
-      process.exit(0);
-    } catch (error) {
-      console.error('❌ Error cerrando MongoDB:', error);
-      process.exit(1);
-    }
+    // mongoose.connection.close() retorna una Promise en versiones recientes
+    mongoose.connection.close()
+      .then(() => {
+        console.log('✅ Conexión a MongoDB cerrada');
+        process.exit(0);
+      })
+      .catch((error) => {
+        console.error('❌ Error cerrando MongoDB:', error);
+        process.exit(1);
+      });
   });
-});
+};
 
-process.on('SIGINT', async () => {
-  console.log('👋 SIGINT recibido. Cerrando servidor...');
-  server.close(async () => {
-    console.log('✅ Servidor cerrado');
-    try {
-      await mongoose.connection.close();
-      console.log('✅ Conexión a MongoDB cerrada');
-      process.exit(0);
-    } catch (error) {
-      console.error('❌ Error cerrando MongoDB:', error);
-      process.exit(1);
-    }
-  });
-});
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 // Manejar errores no capturados
 process.on('unhandledRejection', (reason, promise) => {
