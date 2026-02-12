@@ -23,7 +23,8 @@ const corsOptions = {
       'http://localhost:19006',                   // Expo web alternativo
       'http://localhost:3000',                     // Desarrollo local
       'https://conalep-control-app.onrender.com', // Frontend en Render
-      'https://conalep-app.netlify.app',          // Frontend en Netlify (PRODUCCIÓN)
+      'https://conalep-app.netlify.app',          // Frontend en Netlify
+      'https://idyllic-lily-6378ff.netlify.app',  // App web Netlify (preview/producción)
     ];
 
     // Verificar primero si es un origen exacto permitido
@@ -47,6 +48,12 @@ const corsOptions = {
         console.log(`✅ Origen permitido (patrón ${name}): ${origin}`);
         return callback(null, true);
       }
+    }
+
+    // Respaldo: permitir cualquier subdominio de Netlify u OnRender (producción web)
+    if (origin.endsWith('.netlify.app') || origin.endsWith('.onrender.com')) {
+      console.log(`✅ Origen permitido (dominio): ${origin}`);
+      return callback(null, true);
     }
 
     // En desarrollo, permitir cualquier origen local
@@ -73,11 +80,8 @@ const corsOptions = {
   maxAge: 86400 // Cache preflight por 24 horas
 };
 
-// Aplicar CORS
+// Aplicar CORS (incluye manejo de OPTIONS/preflight para todas las rutas)
 app.use(cors(corsOptions));
-
-// Manejar explícitamente las solicitudes OPTIONS (preflight)
-app.options('*', cors(corsOptions));
 
 // Middleware para logging de CORS (solo en desarrollo)
 if (process.env.NODE_ENV !== 'production') {
@@ -432,14 +436,19 @@ app.use((err, req, res, next) => {
 // ====================
 
 const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = '0.0.0.0'; // IMPORTANTE: Escuchar en todas las interfaces
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`🎯 Servidor corriendo en http://${HOST}:${PORT}`);
   console.log(`🌐 Entorno: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🗄️  Database: ${mongoose.connection.readyState === 1 ? 'Conectado' : 'Desconectado'}`);
+  console.log(`✅ Puerto ${PORT} abierto y escuchando...`);
 });
 
+// Manejar errores del servidor
+server.on('error', (error) => {
+  console.error('❌ Error del servidor:', error);
+});
 // ====================
 // MANEJO DE SHUTDOWN
 // ====================
