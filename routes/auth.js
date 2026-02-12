@@ -2,6 +2,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -113,6 +114,55 @@ router.post('/register', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
+    });
+  }
+});
+
+// Cambiar contraseña del usuario actual (requiere token)
+router.patch('/cambiar-contraseña', auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user._id;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faltan contraseña actual o nueva'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'La nueva contraseña debe tener al menos 6 caracteres'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const match = await user.compararPassword(currentPassword);
+    if (!match) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contraseña actual incorrecta'
+      });
+    }
+
+    user.password = newPassword;
+    await user.save(); // El pre-save del modelo hashea la contraseña
+
+    return res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente'
+    });
+  } catch (err) {
+    console.error('Error al cambiar contraseña:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Error al cambiar contraseña'
     });
   }
 });

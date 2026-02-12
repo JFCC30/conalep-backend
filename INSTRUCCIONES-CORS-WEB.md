@@ -43,7 +43,8 @@ const corsOptions = {
       'http://localhost:19006',          // Expo web alternativo
       'http://localhost:3000',           // Desarrollo local
       'https://conalep-control-app.web.app',  // Firebase Hosting (ejemplo)
-      'https://conalep-control-app.netlify.app', // Netlify (ejemplo)
+      'https://conalep-app.netlify.app',     // Netlify (producción)
+      /\.netlify\.app$/,                     // Todos los dominios de Netlify
       'https://conalep-control-app.vercel.app',  // Vercel (ejemplo)
       // Agrega aquí tu dominio de producción cuando lo tengas
     ];
@@ -119,7 +120,8 @@ app.use((req, res, next) => {
     'http://localhost:19006',
     'http://localhost:3000',
     'https://conalep-control-app.web.app',
-    'https://conalep-control-app.netlify.app',
+    'https://conalep-app.netlify.app',
+    /\.netlify\.app$/,  // Todos los dominios de Netlify
     'https://conalep-control-app.vercel.app',
     // Agrega tu dominio de producción aquí
   ];

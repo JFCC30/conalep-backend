@@ -20,6 +20,7 @@ app.use(cors({
     'http://localhost:8081',      // Expo web local
     'http://localhost:19006',     // Expo web alternativo
     'http://localhost:3000',       // Desarrollo local
+    'https://conalep-app.netlify.app', // Frontend en Netlify
     // Agrega tu dominio de producción aquí
   ],
   credentials: true,
